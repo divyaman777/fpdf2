@@ -26,6 +26,7 @@ class Template:
         elements=None,
         format="A4",
         orientation="portrait",
+        unit="mm",
         title="",
         author="",
         subject="",
@@ -53,7 +54,7 @@ class Template:
             "W": self.write,
         }
         self.texts = {}
-        pdf = self.pdf = FPDF(format=format, orientation=orientation, unit="mm")
+        pdf = self.pdf = FPDF(format=format, orientation=orientation, unit=unit)
         pdf.set_title(title)
         pdf.set_author(author)
         pdf.set_creator(creator)
@@ -136,7 +137,6 @@ class Template:
 
     def split_multicell(self, text, element_name):
         """Divide (\n) a string using a given element width"""
-        pdf = self.pdf
         element = next(
             element
             for element in self.elements
@@ -149,16 +149,12 @@ class Template:
             style += "I"
         if element["underline"]:
             style += "U"
-        pdf.set_font(element["font"], style, element["size"])
-        align = {"L": "L", "R": "R", "I": "L", "D": "R", "C": "C", "": ""}.get(
-            element["align"]
-        )  # D/I in spanish
-        text = str(text)
-        return pdf.multi_cell(
+        self.pdf.set_font(element["font"], style, element["size"])
+        return self.pdf.multi_cell(
             w=element["x2"] - element["x1"],
             h=element["y2"] - element["y1"],
-            txt=text,
-            align=align,
+            txt=str(text),
+            align=element["align"],
             split_only=True,
         )
 
@@ -224,8 +220,6 @@ class Template:
             pdf.set_fill_color(*rgb(backgroud))
 
         font = font.strip().lower()
-        if font == "helvetica black":
-            font = "helvetica"
         style = ""
         for tag in "B", "I", "U":
             if text.startswith(f"<{tag}>") and text.endswith(f"</{tag}>"):
@@ -237,28 +231,18 @@ class Template:
             style += "I"
         if underline:
             style += "U"
-        align = {"L": "L", "R": "R", "I": "L", "D": "R", "C": "C", "": ""}.get(
-            align
-        )  # D/I in spanish
         pdf.set_font(font, style, size)
-        # m_k = 72 / 2.54
-        # h = (size/m_k)
         pdf.set_xy(x1, y1)
-        if multiline is None:
-            # multiline==None: write without wrapping/trimming (default)
-            pdf.cell(w=x2 - x1, h=y2 - y1, txt=text, border=0, ln=0, align=align)
-        elif multiline:
-            # multiline==True: automatic word - warp
-            pdf.multi_cell(w=x2 - x1, h=y2 - y1, txt=text, border=0, align=align)
-        else:
-            # multiline==False: trim to fit exactly the space defined
+        width, height = x2 - x1, y2 - y1
+        if multiline is None:  # write without wrapping/trimming (default)
+            pdf.cell(w=width, h=height, txt=text, border=0, ln=0, align=align)
+        elif multiline:  # automatic word - warp
+            pdf.multi_cell(w=width, h=height, txt=text, border=0, align=align)
+        else:  # trim to fit exactly the space defined
             text = pdf.multi_cell(
-                w=x2 - x1, h=y2 - y1, txt=text, align=align, split_only=True
+                w=width, h=height, txt=text, align=align, split_only=True
             )[0]
-            print(f"trimming: *{text}*")
-            pdf.cell(w=x2 - x1, h=y2 - y1, txt=text, border=0, ln=0, align=align)
-
-            # pdf.Text(x=x1,y=y1,txt=text)
+            pdf.cell(w=width, h=height, txt=text, border=0, ln=0, align=align)
 
     @staticmethod
     def line(pdf, *_, x1=0, y1=0, x2=0, y2=0, size=0, foreground=0, **__):
@@ -331,12 +315,11 @@ class Template:
         y2=0,
         text="",
         font="helvetica",
-        size=1,
+        size=10,
         bold=False,
         italic=False,
         underline=False,
-        align="",
-        link="http://example.com",
+        link="",
         foreground=0,
         **__,
     ):
@@ -344,8 +327,6 @@ class Template:
         if pdf.text_color != rgb(foreground):
             pdf.set_text_color(*rgb(foreground))
         font = font.strip().lower()
-        if font == "helvetica black":
-            font = "helvetica"
         style = ""
         for tag in "B", "I", "U":
             if text.startswith(f"<{tag}>") and text.endswith(f"</{tag}>"):
@@ -357,11 +338,6 @@ class Template:
             style += "I"
         if underline:
             style += "U"
-        align = {"L": "L", "R": "R", "I": "L", "D": "R", "C": "C", "": ""}.get(
-            align
-        )  # D/I in spanish
         pdf.set_font(font, style, size)
-        # m_k = 72 / 2.54
-        # h = (size/m_k)
         pdf.set_xy(x1, y1)
         pdf.write(5, text, link)
